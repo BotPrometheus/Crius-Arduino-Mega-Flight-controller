@@ -9,6 +9,11 @@ unsigned long TimerSC[5];           //Η ώρα σε microsecond που θα σ�
 unsigned long TimerLoop;            //Η ώρα κύκλου
 int TimeLenghtPWMChan[7];           //Χρονικό διάστημα παλμού PWM τηλεκατεύθυνση
 
-int temperature;                    //Η τιμή θερμοκρασίας από το MPU6050
-long acc_x, acc_y, acc_z, acc_total_vector; //Οι πάνω τιμές acc_axis που αντιγράφονται σε acc_x, acc_y, acc_z
-double gyro_pitch, gyro_roll, gyro_yaw;     //Οι πάνω τιμές gyro_axis που αντιγράφονται σε gyro_pitch, gyro_roll, gyro_yaw ομοίως
+j
+dsfgsdg
+ghjg
+rthfh
+
+int dfg;
+sdfgsdfg dsfgdg;
+vcvxbxcvb gfdg gdf gfd;
