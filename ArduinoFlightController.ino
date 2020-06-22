@@ -15,17 +15,13 @@ double gyro_pitch, gyro_roll, gyro_yaw;     //Οι γωνιακές επιταχ
 long gyro_axis_cal[4];          //Πίνακας αποθήκευσης τιμών απο αρχικές μετρήσεις γυροσκοπίου στο setup οπου προκύπει ο μέσος όρος διόρθωσης γωνίας για την γωνία που ξεκινάει το drone
 
 int esc_1, esc_2, esc_3, esc_4; //Οι τιμές των speed controller που προκύπτουν από υπολογισμούς
-float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;
-float pid_i_mem_roll, pid_roll_setpoint, gyro_roll_input, pid_output_roll, pid_last_roll_d_error;
+
 int numOfCalibrations;//Αριθμός αρχικών μετρήσεων από το γυροσκόπιο MPU6050 για να υπολογιστή ο διορθωτικός πίνακας gyro_axis_cal[]. Αριθμός διορθώσεων = 2000.
 int start;  //Κατάσταση drone 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
-float pid_error_temp;
-float roll_level_adjust, pitch_level_adjust;
-float angle_roll_acc, angle_pitch_acc, angle_pitch, angle_roll;
-boolean auto_level = true;                 //Auto level on (true) or off (false)
-int throttle, battery_voltage;
-boolean gyro_angles_set;
-
+float angle_roll_acc, angle_pitch_acc;  //Υπολογισμός roll - pitch από το επιταχυνσιόμετρο
+float angle_pitch, angle_roll;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
+boolean auto_level = true;              //Auto level on (true) or off (false)
+int throttle, battery_voltage;          //Μεταβλητή που δέχεται το γκάζι από την τηλεκατεύθυνση, Μεταβλητή που δείχνει την τάση της μπαταρίας
 
 #define interrupt_Ch1_Roll     A9     //CHANNEL 1 ==> A9  Roll
 #define interrupt_Ch2_Pitch    A10    //CHANNEL 2 ==> A10 Pitch
@@ -38,6 +34,11 @@ boolean gyro_angles_set;
 #define LED_ORANGE_B 31
 #define LED_GREEN_C  30
 
+float roll_level_adjust, pitch_level_adjust;
+float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;
+float pid_i_mem_roll, pid_roll_setpoint, gyro_roll_input, pid_output_roll, pid_last_roll_d_error;
+float pid_error_temp;
+
 float pid_p_gain_roll = 1.3;               //Gain setting for the roll P-controller
 float pid_i_gain_roll = 0.04;              //Gain setting for the roll I-controller
 float pid_d_gain_roll = 18.0;              //Gain setting for the roll D-controller
@@ -46,12 +47,12 @@ int pid_max_roll = 400;                    //Maximum output of the PID-controlle
 float pid_p_gain_pitch = pid_p_gain_roll;  //Gain setting for the pitch P-controller.
 float pid_i_gain_pitch = pid_i_gain_roll;  //Gain setting for the pitch I-controller.
 float pid_d_gain_pitch = pid_d_gain_roll;  //Gain setting for the pitch D-controller.
-int pid_max_pitch = pid_max_roll;          //Maximum output of the PID-controller (+/-)
+int   pid_max_pitch    = pid_max_roll;     //Maximum output of the PID-controller (+/-)
 
 float pid_p_gain_yaw = 4.0;                //Gain setting for the pitch P-controller. //4.0
 float pid_i_gain_yaw = 0.02;               //Gain setting for the pitch I-controller. //0.02
 float pid_d_gain_yaw = 0.0;                //Gain setting for the pitch D-controller.
-int pid_max_yaw = 400;                     //Maximum output of the PID-controller (+/-)
+int   pid_max_yaw    = 400;                //Maximum output of the PID-controller (+/-)
 
 float pid_i_mem_yaw, pid_yaw_setpoint, gyro_yaw_input, pid_output_yaw, pid_last_yaw_d_error;
 
@@ -228,7 +229,6 @@ void loop() {
       start = 2;
       angle_pitch = angle_pitch_acc;                                          //Set the gyro pitch angle equal to the accelerometer pitch angle when the quadcopter is started.
       angle_roll = angle_roll_acc;                                            //Set the gyro roll angle equal to the accelerometer roll angle when the quadcopter is started.
-      gyro_angles_set = true;                                                 //Set the IMU started flag.
       //Reset the PID controllers for a bumpless start.
       pid_i_mem_roll = 0;
       pid_last_roll_d_error = 0;
