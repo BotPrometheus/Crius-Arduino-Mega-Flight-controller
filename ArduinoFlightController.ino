@@ -4,20 +4,21 @@
 
 LiquidCrystal_I2C lcd(0x27,16,2);       //Initialize the LCD library
 
-unsigned long TimerCh[7];          //Η ώρα σε microsecond για τον υπολογισμό PWM καναλιών
+unsigned long TimerCh[7];           //Η ώρα σε microsecond για τον υπολογισμό PWM καναλιών
 unsigned long TimerSC[5];           //Η ώρα σε microsecond που θα σταματίσει ο παλμός στο speedControler
 unsigned long TimerLoop;            //Η ώρα κύκλου
 int TimeLenghtPWMChan[7];           //Χρονικό διάστημα παλμού PWM τηλεκατεύθυνση
 
-int temperature;                    //Η τιμή θερμοκρασίας από το MPU6050
-long acc_x, acc_y, acc_z, acc_total_vector; //Οι πάνω τιμές acc_axis που αντιγράφονται σε acc_x, acc_y, acc_z
-double gyro_pitch, gyro_roll, gyro_yaw;     //Οι πάνω τιμές gyro_axis που αντιγράφονται σε gyro_pitch, gyro_roll, gyro_yaw ομοίως
+int temperature;                            //Η τιμή θερμοκρασίας από το MPU6050
+long acc_x, acc_y, acc_z, acc_total_vector; //Οι γραμμικές επιταχύνσεις από το MPU6050 κατά x-y-z. Όχι μετακινήσεις.
+double gyro_pitch, gyro_roll, gyro_yaw;     //Οι γωνιακές επιταχύνσεις από το MPU6050 κατά x-y-z. Όχι γωνίες.
+long gyro_axis_cal[4];          //Πίνακας αποθήκευσης τιμών απο αρχικές μετρήσεις γυροσκοπίου στο setup οπου προκύπει ο μέσος όρος διόρθωσης γωνίας για την γωνία που ξεκινάει το drone
 
-long gyro_axis_cal[4];    //Πίνακας αποθήκευσης τιμών απο αρχικές μετρήσεις γυροσκοπίου στο setup οπου προκύπει ο μέσος όρος διόρθωσης γωνίας για την γωνία που ξεκινάει το drone
 int esc_1, esc_2, esc_3, esc_4; //Οι τιμές των speed controller που προκύπτουν από υπολογισμούς
 float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;
 float pid_i_mem_roll, pid_roll_setpoint, gyro_roll_input, pid_output_roll, pid_last_roll_d_error;
-int cal_int, start, gyro_address;
+int numOfCalibrations;//Αριθμός αρχικών μετρήσεων από το γυροσκόπιο MPU6050 για να υπολογιστή ο διορθωτικός πίνακας gyro_axis_cal[]. Αριθμός διορθώσεων = 2000.
+int start;  //Κατάσταση drone 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
 float pid_error_temp;
 float roll_level_adjust, pitch_level_adjust;
 float angle_roll_acc, angle_pitch_acc, angle_pitch, angle_roll;
@@ -105,9 +106,9 @@ void setup(){
     lcd.clear();                      //Clear the LCD
 
     //Let's take multiple gyro data samples so we can determine the average gyro offset (calibration).
-    for (cal_int = 0; cal_int < 2000 ; cal_int ++)                            //Take 2000 readings for calibration.
+    for (numOfCalibrations = 0; numOfCalibrations < 2000 ; numOfCalibrations ++)                            //Take 2000 readings for calibration.
     {
-        if(cal_int % 15 == 0)
+        if(numOfCalibrations % 15 == 0)
             digitalWrite(LED_RED_A, !digitalRead(LED_RED_A));               //Change the led status to indicate calibration.
 
         gyro_signalen();                                                    //Read the gyro output.
@@ -369,7 +370,7 @@ void gyro_signalen(){
     gyro_roll = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
     gyro_yaw = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
 
-    if(cal_int == 2000){
+    if(numOfCalibrations == 2000){
         gyro_pitch -= gyro_axis_cal[1];                                   //Only compensate after the calibration. X
         gyro_roll -= gyro_axis_cal[2];                                   //Only compensate after the calibration. Y
         gyro_yaw -= gyro_axis_cal[3];                                   //Only compensate after the calibration. Z
