@@ -1,0 +1,10 @@
+#include <LiquidCrystal_I2C.h>
+#include "PinChangeInterrupt.h"
+#include <Wire.h>                       //Include the Wire.h library so we can communicate with the gyro.
+
+LiquidCrystal_I2C lcd(0x27,16,2);       //Initialize the LCD library
+
+unsigned long TimerCh[7];          //Η ώρα σε microsecond για τον υπολογισμό PWM καναλιών
+unsigned long TimerSC[5];           //Η ώρα σε microsecond που θα σταματίσει ο παλμός στο speedControler
+unsigned long TimerLoop;            //Η ώρα κύκλου
+int TimeLenghtPWMChan[7];           //Χρονικό διάστημα παλμού PWM τηλεκατεύθυνση
