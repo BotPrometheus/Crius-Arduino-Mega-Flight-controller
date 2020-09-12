@@ -30,19 +30,19 @@ int throttle, battery_voltage;          //Μεταβλητή που δέχετα
 #define interrupt_Ch5_AUX1     A12    //CHANNEL 5 ==> A12 AUX1
 #define interrupt_Ch6_AUX2     A13    //CHANNEL 6 ==> A13 AUX2
 
-#define LED_RED_A    13
-#define LED_ORANGE_B 31
-#define LED_GREEN_C  30
+#define LED_RED_A    13					//Red led of the board
+#define LED_ORANGE_B 31					//Orange led of the board
+#define LED_GREEN_C  30					//Green led of the board
 
 float roll_level_adjust, pitch_level_adjust;
 float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;
-float pid_i_mem_roll, pid_roll_setpoint, gyro_roll_input, pid_output_roll, pid_last_roll_d_error;
+float pid_i_mem_roll,  pid_roll_setpoint,  gyro_roll_input,  pid_output_roll,  pid_last_roll_d_error;
 float pid_error_temp;
 
 float pid_p_gain_roll = 1.3;               //Gain setting for the roll P-controller
 float pid_i_gain_roll = 0.04;              //Gain setting for the roll I-controller
 float pid_d_gain_roll = 18.0;              //Gain setting for the roll D-controller
-int pid_max_roll = 400;                    //Maximum output of the PID-controller (+/-)
+int   pid_max_roll    = 400;               //Maximum output of the PID-controller (+/-)
 
 float pid_p_gain_pitch = pid_p_gain_roll;  //Gain setting for the pitch P-controller.
 float pid_i_gain_pitch = pid_i_gain_roll;  //Gain setting for the pitch I-controller.
@@ -76,11 +76,11 @@ volatile int receiver_input_channel_1, receiver_input_channel_2, receiver_input_
 unsigned long loop_timer_LCD=0;
 
 void setup(){
-    Serial.begin(115200);                //Use only for debugging
-    pinMode(LED_RED_A, OUTPUT);      //Το κόκκινο LED της κάρτας γίνεται διαθέσιμο
+    Serial.begin(115200);             //Use only for debugging
+    pinMode(LED_RED_A, OUTPUT);      	//Το κόκκινο LED της κάρτας γίνεται διαθέσιμο
     pinMode(LED_GREEN_C, OUTPUT);       //Το πράσινο LED της κάρτας γίνεται διαθέσιμο
     pinMode(LED_ORANGE_B, OUTPUT);      //Το πορτοκαλί LED της κάρτας γίνεται διαθέσιμο
-    digitalWrite(LED_ORANGE_B, false);
+    digitalWrite(LED_RED_A, false);digitalWrite(LED_GREEN_C, false);digitalWrite(LED_ORANGE_B, false);
     //Σύνδεση interrupt pin με τις συναρτήσεις των καναλιών
     attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(interrupt_Ch1_Roll),     Ch1_Roll,     CHANGE);
     attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(interrupt_Ch2_Pitch),    Ch2_Pitch,    CHANGE);
@@ -130,20 +130,21 @@ void setup(){
 
 
     //Wait until the throtle is set to the lower position.
-    while(receiver_input_channel_3 > 1020){
-      receiver_input_channel_3 = convert_receiver_channel(3);
-      start ++;                                                       //While waiting increment start whith every loop.
-      //We don't want the esc's to be beeping annoyingly. So let's give them a 1000us puls while waiting for the receiver inputs.
-      PORTE |= B00111000;PORTH |= B00001000;                          //Set digital poort 2, 3, 5 and 6 high.
-      delayMicroseconds(1000);                                        //Wait 1000us.
-      PORTE &= B11000111;PORTH &= B11110111;                          //Set digital poort 2, 3, 5 and 6 low.
-      delayMicroseconds(3000);                                        //Wait 3000us before the next loop.
-      if(start == 125){                                               //Every 125 loops (500ms).
-        digitalWrite(LED_ORANGE_B, !digitalRead(LED_ORANGE_B));       //Change the led status.
-        start = 0;                                                    //Start again at 0.
-      }
-    }
-    start = 0;
+    do{
+		receiver_input_channel_3 = convert_receiver_channel(3);
+		start ++;                                                       //While waiting increment start whith every loop.
+		//We don't want the esc's to be beeping annoyingly. So let's give them a 1000us puls while waiting for the receiver inputs.
+		PORTE |= B00111000;PORTH |= B00001000;                          //Set digital poort 2, 3, 5 and 6 high.
+		delayMicroseconds(1000);                                        //Wait 1000us.
+		PORTE &= B11000111;PORTH &= B11110111;                          //Set digital poort 2, 3, 5 and 6 low.
+		delayMicroseconds(3000);                                      //Wait 3000us before the next loop.
+		if(start == 125)
+		{                                               				//Every 125 loops (500ms).
+			digitalWrite(LED_ORANGE_B, !digitalRead(LED_ORANGE_B));       //Change the led status.
+			start = 0;                                                    //Start again at 0.
+		}
+	}while(receiver_input_channel_3 > 1020);
+	start = 0;
 
     /*Load the battery voltage to the battery_voltage variable.
     65 is the voltage compensation for the diode.
@@ -153,8 +154,8 @@ void setup(){
     The variable battery_voltage holds 1050 if the battery voltage is 10.5V.*/
     battery_voltage = (analogRead(0) + 65) * 1.2317;
     //When everything is done, turn off the led.
-    digitalWrite(LED_RED_A, false);                                                   //Turn off the warning led.
-    TimerLoop = micros();                                                    //Set the timer for the next loop.
+    digitalWrite(LED_ORANGE_B, false);                                          //Turn off the warning led.
+    TimerLoop = micros();                                                    	//Set the timer for the next loop.
 }
 
 void loop() {
@@ -286,21 +287,21 @@ void loop() {
       esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW)
 
       /*if (battery_voltage < 1240 && battery_voltage > 800){                   //Is the battery connected?
-        esc_1 += esc_1 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-1 pulse for voltage drop.
-        esc_2 += esc_2 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-2 pulse for voltage drop.
-        esc_3 += esc_3 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-3 pulse for voltage drop.
-        esc_4 += esc_4 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-4 pulse for voltage drop.
-    }*/
+	        esc_1 += esc_1 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-1 pulse for voltage drop.
+	        esc_2 += esc_2 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-2 pulse for voltage drop.
+	        esc_3 += esc_3 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-3 pulse for voltage drop.
+	        esc_4 += esc_4 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-4 pulse for voltage drop.
+    	}*/
 
       if (esc_1 < 1100) esc_1 = 1100;                                         //Keep the motors running.
       if (esc_2 < 1100) esc_2 = 1100;                                         //Keep the motors running.
       if (esc_3 < 1100) esc_3 = 1100;                                         //Keep the motors running.
       if (esc_4 < 1100) esc_4 = 1100;                                         //Keep the motors running.
 
-      if(esc_1 > 1600)esc_1 = 1600;                                           //Limit the esc-1 pulse to 2000us.
-      if(esc_2 > 1600)esc_2 = 1600;                                           //Limit the esc-2 pulse to 2000us.
-      if(esc_3 > 1600)esc_3 = 1600;                                           //Limit the esc-3 pulse to 2000us.
-      if(esc_4 > 1600)esc_4 = 1600;                                           //Limit the esc-4 pulse to 2000us.
+      if (esc_1 > 1600) esc_1 = 1600;                                           //Limit the esc-1 pulse to 2000us.
+      if (esc_2 > 1600) esc_2 = 1600;                                           //Limit the esc-2 pulse to 2000us.
+      if (esc_3 > 1600) esc_3 = 1600;                                           //Limit the esc-3 pulse to 2000us.
+      if (esc_4 > 1600) esc_4 = 1600;                                           //Limit the esc-4 pulse to 2000us.
     }
 
     else{
@@ -323,10 +324,10 @@ void loop() {
     //! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
     if(micros() - TimerLoop > 8050)   digitalWrite(LED_ORANGE_B, HIGH);        //Turn on the LED if the loop time exceeds 4050us.(tas 8050us)
     //All the information for controlling the motor's is available.
-    //The refresh rate is 250Hz(tas 125Hz). That means the esc's need there pulse every 4ms.
-    while(micros() - TimerLoop < 8000);                                      //We wait until 4000us are passed.
-    TimerLoop = micros();                                                    //Set the timer for the next loop.
-    PORTE |= B00111000;PORTH |= B00001000;                                    //Set digital outputs 2,3,5 and 6 high.
+    //The refresh rate is 250Hz(tas 125Hz). That means the esc's need there pulse every 8ms.
+    while(micros() - TimerLoop < 8000);                                 //We wait until 8000us are passed.
+    TimerLoop = micros();                                               //Set the timer for the next loop.
+    PORTE |= B00111000;PORTH |= B00001000;                              //Set digital outputs 2,3,5 and 6 high.
     TimerSC[1] = esc_1 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-1 pulse.
     TimerSC[2] = esc_2 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-2 pulse.
     TimerSC[3] = esc_3 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-3 pulse.
@@ -338,7 +339,7 @@ void loop() {
       if(TimerSC[2] <= esc_loop_timer)PORTE &= B11011111;                //Set digital output 3 [5] to low if the time is expired. Το D3 είναι το 6ο bit PORTE
       if(TimerSC[3] <= esc_loop_timer)PORTE &= B11110111;                //Set digital output 5 [6] to low if the time is expired. Το D5 είναι το 4ο bit PORTE
       if(TimerSC[4] <= esc_loop_timer)PORTH &= B11110111;                //Set digital output 6 [7] to low if the time is expired. Το D6 είναι το 4ο bit PORTH
-  }
+    }
     //Συναρτήσεις που θα διαχειρίζονται μετρήσεις αισθητήρων εδώ
     gyro_signalen();
 }
@@ -362,18 +363,18 @@ void gyro_signalen(){
     receiver_input_channel_6 = convert_receiver_channel(6);
 
     while(Wire.available() < 14);                                           //Wait until the 14 bytes are received.
-    acc_x  = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_x variable.
-    acc_y  = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_y variable.
-    acc_z  = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_z variable.
+    acc_x        = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_x variable.
+    acc_y        = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_y variable.
+    acc_z        = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_z variable.
     temperature  = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the temperature variable.
-    gyro_pitch = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
-    gyro_roll = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
-    gyro_yaw = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
+    gyro_pitch   = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
+    gyro_roll    = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
+    gyro_yaw     = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
 
     if(numOfCalibrations == 2000){
         gyro_pitch -= gyro_axis_cal[1];                                   //Only compensate after the calibration. X
-        gyro_roll -= gyro_axis_cal[2];                                   //Only compensate after the calibration. Y
-        gyro_yaw -= gyro_axis_cal[3];                                   //Only compensate after the calibration. Z
+        gyro_roll  -= gyro_axis_cal[2];                                   //Only compensate after the calibration. Y
+        gyro_yaw   -= gyro_axis_cal[3];                                   //Only compensate after the calibration. Z
     }
 }
 
@@ -517,17 +518,6 @@ void Ch6_AUX2(void) {
         TimeLenghtPWMChan[6] = micros()-TimerCh[6];
     }
 }
-
-/*void Ch6_AUX2(void) {
-    current_time=micros();
-    uint8_t trigger = getPinChangeInterruptTrigger(digitalPinToPCINT(interrupt_Ch6_AUX2));
-    if(trigger == RISING){
-        timer_Ch6 = current_time;
-    }
-    else if(trigger == FALLING){
-        TimeLenghtPWMChan[6] = current_time - timer_Ch6;
-    }
-}*/
 
 //This part converts the actual receiver signals to a standardized 1000 � 1500 � 2000 microsecond value.
 //The stored data in the EEPROM is used.
