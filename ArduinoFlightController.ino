@@ -19,7 +19,7 @@ int esc_1, esc_2, esc_3, esc_4; //Οι τιμές των speed controller που
 int numOfCalibrations;//Αριθμός αρχικών μετρήσεων από το γυροσκόπιο MPU6050 για να υπολογιστή ο διορθωτικός πίνακας gyro_axis_cal[]. Αριθμός διορθώσεων = 2000.
 int start;  //Κατάσταση drone 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
 float angle_roll_acc, angle_pitch_acc;  //Υπολογισμός roll - pitch από το επιταχυνσιόμετρο
-float angle_pitch, angle_roll;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
+float drone_pitch, drone_roll;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
 boolean auto_level = true;              //Auto level on (true) or off (false)
 int throttle, battery_voltage;          //Μεταβλητή που δέχεται το γκάζι από την τηλεκατεύθυνση, Μεταβλητή που δείχνει την τάση της μπαταρίας
 
@@ -34,9 +34,9 @@ int throttle, battery_voltage;          //Μεταβλητή που δέχετα
 #define LED_ORANGE_B 31					//Orange led of the board
 #define LED_GREEN_C  30					//Green led of the board
 
-float roll_level_adjust, pitch_level_adjust;
-float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;
-float pid_i_mem_roll,  pid_roll_setpoint,  gyro_roll_input,  pid_output_roll,  pid_last_roll_d_error;
+float roll_level_adjust, pitch_level_adjust;	//*_level_adjust = 15 x drone_* //*_level_adjust value for PID calculations
+float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;//Values inside calculate_pid()
+float pid_i_mem_roll,  pid_roll_setpoint,  gyro_roll_input,  pid_output_roll,  pid_last_roll_d_error;//Values inside calculate_pid()
 float pid_error_temp;
 
 float pid_p_gain_roll = 1.3;               //Gain setting for the roll P-controller
@@ -55,7 +55,6 @@ float pid_d_gain_yaw = 0.0;                //Gain setting for the pitch D-contro
 int   pid_max_yaw    = 400;                //Maximum output of the PID-controller (+/-)
 
 float pid_i_mem_yaw, pid_yaw_setpoint, gyro_yaw_input, pid_output_yaw, pid_last_yaw_d_error;
-
 
 double Ch1A, Ch2A, Ch3A, Ch4A, Ch5A, Ch6A, Ch7A, Ch8A, Ch9A;     //Μεταβλητές που περιέχουν το 1000/(μέγιστο-ελάχιστο) που εκπέμπει το κάθε κανάλι
 int channel1TrData[2];
@@ -89,7 +88,7 @@ void setup(){
     attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(interrupt_Ch5_AUX1),     Ch5_AUX1,     CHANGE);
     attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(interrupt_Ch6_AUX2),     Ch6_AUX2,     CHANGE);
 
-    setupChannelCalibrationValues();
+    setupChannelCalibrationValues();	//Manual setup of the receiver values. Usally channels values are in the range for example 1047-1958. Rarely are 1000-2000
 
     Wire.begin();                     //Start the I2C as master.
     start = 0;                        //Set start to zero.
@@ -122,6 +121,11 @@ void setup(){
         PORTE = B00000000;PORTH = B00000000;                                //Set digital poort 2, 3, 5 and 6 low.
         delayMicroseconds(3000);                                            //Wait 3 milliseconds before the next loop.
     }
+	digitalWrite(LED_RED_A, false);		//Turn off the warning led.
+	gyro_pitch=gyro_roll=gyro_yaw=0;	//demo Set the values 0 because it has goob efect to the angles at pitch and roll at the start
+	acc_total_vector = sqrt((acc_x*acc_x)+(acc_y*acc_y)+(acc_z*acc_z));//demo
+	drone_pitch = angle_pitch_acc=asin((float)acc_y/acc_total_vector)*  57.296;      //demo
+    drone_roll  = angle_roll_acc= asin((float)acc_x/acc_total_vector)* -57.296;		//demo
 
     //Now that we have 2000 measures, we need to devide by 2000 to get the average gyro offset.
     gyro_axis_cal[1] /= 2000;                                                 //Divide the roll total by 2000.
@@ -144,6 +148,7 @@ void setup(){
 			start = 0;                                                    //Start again at 0.
 		}
 	}while(receiver_input_channel_3 > 1020);
+	digitalWrite(LED_ORANGE_B, false);		//Turn off the warning led.
 	start = 0;
 
     /*Load the battery voltage to the battery_voltage variable.
@@ -154,7 +159,6 @@ void setup(){
     The variable battery_voltage holds 1050 if the battery voltage is 10.5V.*/
     battery_voltage = (analogRead(0) + 65) * 1.2317;
     //When everything is done, turn off the led.
-    digitalWrite(LED_ORANGE_B, false);                                          //Turn off the warning led.
     TimerLoop = micros();                                                    	//Set the timer for the next loop.
 }
 
@@ -173,14 +177,16 @@ void loop() {
           //Serial.print("esc_2        ");Serial.println(esc_2);
           //Serial.print("esc_3        ");Serial.println(esc_3);
           //Serial.print("esc_4        ");Serial.println(esc_4);
-          Serial.print("P ");Serial.println(angle_pitch);
-          Serial.print("R ");Serial.println(angle_roll);
+          Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
+          Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
+		  Serial.print("Y");Serial.println(gyro_yaw_input);
           //Serial.print("S ");Serial.println(start);
     }
     //65.5 = 1 deg/sec (check the datasheet of the MPU-6050 for more information).
-    gyro_roll_input  = (gyro_roll_input  * 0.7) + ((gyro_roll  / 65.5) * 0.3); //Gyro pid input is deg/sec.
-    gyro_pitch_input = (gyro_pitch_input * 0.7) + ((gyro_pitch / 65.5) * 0.3); //Gyro pid input is deg/sec.
-    gyro_yaw_input   = (gyro_yaw_input   * 0.7) + ((gyro_yaw   / 65.5) * 0.3); //Gyro pid input is deg/sec.
+	//This is a filter to avoid the effects of a faulty read from gyro and smooth the total value.
+    gyro_roll_input  = (gyro_roll_input  * 0.7) + ((2*gyro_roll  / 65.5) * 0.3); //Gyro pid input is deg/sec.
+    gyro_pitch_input = (gyro_pitch_input * 0.7) + ((2*gyro_pitch / 65.5) * 0.3); //Gyro pid input is deg/sec.
+    gyro_yaw_input   = (gyro_yaw_input   * 0.7) + ((2*gyro_yaw   / 65.5) * 0.3); //Gyro pid input is deg/sec.
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //This is the added IMU code from the videos:
     //https://youtu.be/4BoIE8YQwM8
@@ -188,58 +194,68 @@ void loop() {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //Gyro angle calculations
     //0.0000611 = 1 / (250Hz / 65.5)
-    //Πολλαπλασιάζω επί 2 γιατί αντι για περίοδο 1/250=4ms χρησιμοποιώ περίοδο 1/125=8ms για να προλαβαίνει το arduino να διαβάσει το γυροσκόπιο και μελλοντικούς αισθητήρες
-    angle_pitch += 2*gyro_pitch * 0.0000611;      //Calculate the traveled pitch angle and add this to the angle_pitch variable.
-    angle_roll  += 2*gyro_roll  * 0.0000611;      //Calculate the traveled roll angle and add this to the angle_roll variable.
+    //I multiply with 2 because insted using a periode of 1/250=4ms I am using a periode of 1/125=8ms για να προλαβαίνει το arduino να διαβάσει το γυροσκόπιο και μελλοντικούς αισθητήρες
+    drone_pitch += 2*gyro_pitch * 0.0000611;      //Calculate the traveled pitch angle and add this to the drone_pitch variable.
+    drone_roll  += 2*gyro_roll  * 0.0000611;      //Calculate the traveled roll angle and add this to the drone_roll variable.
 
     //0.000001066 = 0.0000611 * (3.142(PI) / 180degr) The Arduino sin function is in radians
     //Πολλαπλασιάζω επί 2 γιατί αντι για περίοδο 1/250=4ms χρησιμοποιώ περίοδο 1/125=8ms για να προλαβαίνει το arduino να διαβάσει το γυροσκόπιο και μελλοντικούς αισθητήρες
-    angle_pitch -= angle_roll  * sin(2*gyro_yaw * 0.000001066);                  //If the IMU has yawed transfer the roll angle to the pitch angel.
-    angle_roll  += angle_pitch * sin(2*gyro_yaw * 0.000001066);                  //If the IMU has yawed transfer the pitch angle to the roll angel.
+    drone_pitch += drone_roll  * sin(2*gyro_yaw * 0.000001066);               //If the IMU has yawed transfer the roll angle to the pitch angel.
+    drone_roll  -= drone_pitch * sin(2*gyro_yaw * 0.000001066);               //If the IMU has yawed transfer the pitch angle to the roll angel.
     //Accelerometer angle calculations
     acc_total_vector = sqrt((acc_x*acc_x)+(acc_y*acc_y)+(acc_z*acc_z));       //Calculate the total accelerometer vector.
 
     if(abs(acc_y) < acc_total_vector){                                        //Prevent the asin function to produce a NaN
-      angle_pitch_acc = asin((float)acc_y/acc_total_vector)*  57.296;          //Calculate the pitch angle.
+		angle_pitch_acc = asin((float)acc_y/acc_total_vector)*  57.296;       //Calculate the pitch angle.
     }
     if(abs(acc_x) < acc_total_vector){                                        //Prevent the asin function to produce a NaN
-      angle_roll_acc  = asin((float)acc_x/acc_total_vector)* -57.296;          //Calculate the roll angle.
+		angle_roll_acc  = asin((float)acc_x/acc_total_vector)* -57.296;       //Calculate the roll angle.
     }
+	/*if(acc_z<-50){//demo Not good idea. With vibrations acc_z maybe less than -50 and code thinks for instance that the drone is upside down
+		if(angle_pitch_acc>0){
+			angle_pitch_acc =  180 -angle_pitch_acc;
+			angle_roll_acc  =  180 -angle_roll_acc;
+		}
+		else{
+			angle_pitch_acc = -180 -angle_pitch_acc;
+			angle_roll_acc  = -180 -angle_roll_acc;
+		}
+	}*/
 
     //Place the MPU-6050 spirit level and note the values in the following two lines for calibration.
     angle_pitch_acc -= 0.0;                                                   //Accelerometer calibration value for pitch.
-    angle_roll_acc  -= 0.0;                                                    //Accelerometer calibration value for roll.
+    angle_roll_acc  -= 0.0;                                                   //Accelerometer calibration value for roll.
 
-    angle_pitch = angle_pitch * 0.9996 + angle_pitch_acc * 0.0004;            //Correct the drift of the gyro pitch angle with the accelerometer pitch angle.
-    angle_roll  = angle_roll  * 0.9996 + angle_roll_acc  * 0.0004;            //Correct the drift of the gyro roll angle with the accelerometer roll angle.
+    drone_pitch = drone_pitch * 0.9996 + angle_pitch_acc * 0.0004;            //Correct the drift of the gyro pitch angle with the accelerometer pitch angle.
+    drone_roll  = drone_roll  * 0.9996 + angle_roll_acc  * 0.0004;            //Correct the drift of the gyro roll angle with the accelerometer roll angle.
 
-    pitch_level_adjust = angle_pitch * 15;                                    //Calculate the pitch angle correction
-    roll_level_adjust  = angle_roll  * 15;                                    //Calculate the roll angle correction
+    pitch_level_adjust = drone_pitch * 15;                                    //Calculate the pitch angle correction The current angle of drone x 15. In pid for an angle 10 the value will be 1500+10x15=1750. https://youtu.be/DYpHB-LfloI?list=PL0K4VDicBzsibZqfa42DVxC8CGCMB7G2G&t=329
+    roll_level_adjust  = drone_roll  * 15;                                    //Calculate the roll angle correction
 
     if(!auto_level){                                                          //If the quadcopter is not in auto-level mode
-      pitch_level_adjust = 0;                                                 //Set the pitch angle correction to zero.
-      roll_level_adjust = 0;                                                  //Set the roll angle correcion to zero.
+		pitch_level_adjust = 0;                                               //Set the pitch angle correction to zero.
+		roll_level_adjust = 0;                                                //Set the roll angle correcion to zero.
     }
-    //For starting the motors: throttle low and yaw left (step 1).
-    if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1050){
+    //For starting the motors: throttle low and yaw right (step 1).
+    if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 > 1950){
         start = 1;
         digitalWrite(LED_GREEN_C, true);
     }
     //When yaw stick is back in the center position start the motors (step 2).
-    if(start == 1 && receiver_input_channel_3 < 1050 && receiver_input_channel_4 > 1450){
-      start = 2;
-      angle_pitch = angle_pitch_acc;                                          //Set the gyro pitch angle equal to the accelerometer pitch angle when the quadcopter is started.
-      angle_roll = angle_roll_acc;                                            //Set the gyro roll angle equal to the accelerometer roll angle when the quadcopter is started.
-      //Reset the PID controllers for a bumpless start.
-      pid_i_mem_roll = 0;
-      pid_last_roll_d_error = 0;
-      pid_i_mem_pitch = 0;
-      pid_last_pitch_d_error = 0;
-      pid_i_mem_yaw = 0;
-      pid_last_yaw_d_error = 0;
+    if(start == 1 && receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1550){
+		start = 2;
+		drone_pitch = angle_pitch_acc;                                          //Set the gyro pitch angle equal to the accelerometer pitch angle when the quadcopter is started.
+		drone_roll = angle_roll_acc;                                            //Set the gyro roll angle equal to the accelerometer roll angle when the quadcopter is started.
+		//Reset the PID controllers for a bumpless start.
+		pid_i_mem_roll = 0;
+		pid_last_roll_d_error = 0;
+		pid_i_mem_pitch = 0;
+		pid_last_pitch_d_error = 0;
+		pid_i_mem_yaw = 0;
+		pid_last_yaw_d_error = 0;
     }
-    //Stopping the motors: throttle low and yaw right.
-    if(start == 2 && receiver_input_channel_3 < 1050 && receiver_input_channel_4 > 1950){
+    //Stopping the motors: throttle low and yaw left.
+    if(start == 2 && receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1050){
         start = 0;
         digitalWrite(LED_ORANGE_B, false);
         digitalWrite(LED_GREEN_C, false);
@@ -276,7 +292,10 @@ void loop() {
     //0.09853 = 0.08 * 1.2317.
     battery_voltage = battery_voltage * 0.92 + (analogRead(0) + 65) * 0.09853;
     //Turn on the led if battery voltage is to low.
-    if(battery_voltage < 1000 && battery_voltage > 600)   digitalWrite(LED_RED_A, HIGH);
+    if(600 < battery_voltage && battery_voltage < 1000  ){
+		//digitalWrite(LED_RED_A, HIGH);
+	}
+
     throttle = receiver_input_channel_3;                                      //We need the throttle signal as a base signal.
 
     if (start == 2){                                                          //The motors are started.
@@ -519,8 +538,7 @@ void Ch6_AUX2(void) {
     }
 }
 
-//This part converts the actual receiver signals to a standardized 1000 � 1500 � 2000 microsecond value.
-//The stored data in the EEPROM is used.
+//This part converts the actual receiver signals to a standardized 1000 1500 2000 microsecond value.
 int convert_receiver_channel(int channel){
     int answer=-1;
     if(channel==1)
