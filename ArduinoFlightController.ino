@@ -22,7 +22,7 @@ float angle_roll_acc, angle_pitch_acc;  //Υπολογισμός roll - pitch α
 float drone_pitch, drone_roll;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
 int throttle, battery_voltage;          //Μεταβλητή που δέχεται το γκάζι από την τηλεκατεύθυνση, Μεταβλητή που δείχνει την τάση της μπαταρίας
 
-#define interrupt_Ch1_Roll     A9     //CHANNEL 1 ==> A9  Roll
+#define interrupt_Ch1_Roll     A9     //CHANNEL 1 ==> A9  Roll 
 #define interrupt_Ch2_Pitch    A10    //CHANNEL 2 ==> A10 Pitch
 #define interrupt_Ch3_Throttle A8     //CHANNEL 3 ==> A8  Throttle
 #define interrupt_Ch4_Yaw      A11    //CHANNEL 4 ==> A11 Yaw
