@@ -20,7 +20,6 @@ int numOfCalibrations;//Αριθμός αρχικών μετρήσεων από 
 int start;  //Κατάσταση drone 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
 float angle_roll_acc, angle_pitch_acc;  //Υπολογισμός roll - pitch από το επιταχυνσιόμετρο
 float drone_pitch, drone_roll;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
-boolean auto_level = true;              //Auto level on (true) or off (false)
 int throttle, battery_voltage;          //Μεταβλητή που δέχεται το γκάζι από την τηλεκατεύθυνση, Μεταβλητή που δείχνει την τάση της μπαταρίας
 
 #define interrupt_Ch1_Roll     A9     //CHANNEL 1 ==> A9  Roll
@@ -35,8 +34,8 @@ int throttle, battery_voltage;          //Μεταβλητή που δέχετα
 #define LED_GREEN_C  30					//Green led of the board
 
 float roll_level_adjust, pitch_level_adjust;	//*_level_adjust = 15 x drone_* //*_level_adjust value for PID calculations
-float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;//Values inside calculate_pid()
-float pid_i_mem_roll,  pid_roll_setpoint,  gyro_roll_input,  pid_output_roll,  pid_last_roll_d_error;//Values inside calculate_pid()
+float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;//Values inside calculate_pid() for PID calculations
+float pid_i_mem_roll,  pid_roll_setpoint,  gyro_roll_input,  pid_output_roll,  pid_last_roll_d_error;//Values inside calculate_pid() for PID calculations
 float pid_error_temp;
 
 float pid_p_gain_roll = 1.3;               //Gain setting for the roll P-controller
@@ -73,6 +72,10 @@ volatile int receiver_input_channel_1, receiver_input_channel_2, receiver_input_
 
 //Βοηθητικές μεταβλητές για debugging
 unsigned long loop_timer_LCD=0;
+
+//Variables that control the drone mode
+boolean auto_level = true;              //Auto level on (true) or off (false)
+boolean batteryCheck = false;
 
 void setup(){
     Serial.begin(115200);             //Use only for debugging
@@ -177,10 +180,12 @@ void loop() {
           //Serial.print("esc_2        ");Serial.println(esc_2);
           //Serial.print("esc_3        ");Serial.println(esc_3);
           //Serial.print("esc_4        ");Serial.println(esc_4);
-          Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
-          Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
-		  Serial.print("Y");Serial.println(gyro_yaw_input);
-          //Serial.print("S ");Serial.println(start);
+		  //Serial.print("S ");Serial.println(start);
+          //Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
+          //Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
+		  //Serial.print("Y");Serial.println(gyro_yaw_input);
+		  Serial.println(drone_pitch);Serial.println(drone_roll);
+
     }
     //65.5 = 1 deg/sec (check the datasheet of the MPU-6050 for more information).
 	//This is a filter to avoid the effects of a faulty read from gyro and smooth the total value.
@@ -262,7 +267,7 @@ void loop() {
     }
     //The PID set point in degrees per second is determined by the roll receiver input.
     //In the case of deviding by 3 the max roll rate is aprox 164 degrees per second ( (500-8)/3 = 164d/s ).
-    pid_roll_setpoint = 0;
+    pid_roll_setpoint = 0;//Roll angle of drone determined via user with transmiter
     //We need a little dead band of 16us for better results.
     if(receiver_input_channel_1 > 1508)      pid_roll_setpoint = receiver_input_channel_1 - 1508;
     else if(receiver_input_channel_1 < 1492) pid_roll_setpoint = receiver_input_channel_1 - 1492;
@@ -271,7 +276,7 @@ void loop() {
 
     //The PID set point in degrees per second is determined by the pitch receiver input.
     //In the case of deviding by 3 the max pitch rate is aprox 164 degrees per second ( (500-8)/3 = 164d/s ).
-    pid_pitch_setpoint = 0;
+    pid_pitch_setpoint = 0;//Pitch angle of drone determined via user with transmiter
     //We need a little dead band of 16us for better results.
     if     (receiver_input_channel_2 > 1508)pid_pitch_setpoint = receiver_input_channel_2 - 1508;
     else if(receiver_input_channel_2 < 1492)pid_pitch_setpoint = receiver_input_channel_2 - 1492;
@@ -280,47 +285,49 @@ void loop() {
 
     //The PID set point in degrees per second is determined by the yaw receiver input.
     //In the case of deviding by 3 the max yaw rate is aprox 164 degrees per second ( (500-8)/3 = 164d/s ).
-    pid_yaw_setpoint = 0;
+    pid_yaw_setpoint = 0;//Yaw angle of drone determined via user with transmiter
     //We need a little dead band of 16us for better results.
-    if(receiver_input_channel_3 > 1050){ //Do not yaw when turning off the motors.
+    if(receiver_input_channel_3 > 1050){ //Do not yaw when throtlle is at the bottom.
       if(receiver_input_channel_4 > 1508)      pid_yaw_setpoint = (receiver_input_channel_4 - 1508)/3.0;
       else if(receiver_input_channel_4 < 1492) pid_yaw_setpoint = (receiver_input_channel_4 - 1492)/3.0;
     }
     calculate_pid();              //PID inputs are known. So we can calculate the pid output.
-    //The battery voltage is needed for compensation.
-    //A complementary filter is used to reduce noise.
-    //0.09853 = 0.08 * 1.2317.
-    battery_voltage = battery_voltage * 0.92 + (analogRead(0) + 65) * 0.09853;
-    //Turn on the led if battery voltage is to low.
-    if(600 < battery_voltage && battery_voltage < 1000  ){
-		//digitalWrite(LED_RED_A, HIGH);
+    //If we want to check the battery voltage to correct the esps
+	if(batteryCheck){
+		//The battery voltage is needed for compensation.
+	    //A complementary filter is used to reduce noise.
+	    //0.09853 = 0.08 * 1.2317.
+	    battery_voltage = battery_voltage * 0.92 + (analogRead(0) + 65) * 0.09853;
+	    //Turn on the led if battery voltage is to low.
+	    if(600 < battery_voltage && battery_voltage < 1000  ){
+			digitalWrite(LED_RED_A, HIGH);
+		}
 	}
-
     throttle = receiver_input_channel_3;                                      //We need the throttle signal as a base signal.
 
     if (start == 2){                                                          //The motors are started.
-      if (throttle > 1500) throttle = 1500;                                   //We need some room to keep full control at full throttle.
+      if (throttle > 1700) throttle = 1700;                                   //We need some room to keep full control at full throttle.
       esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 1 (front-right - CCW)
       esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 2 (rear-right - CW)
       esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 3 (rear-left - CCW)
       esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW)
 
-      /*if (battery_voltage < 1240 && battery_voltage > 800){                   //Is the battery connected?
+      if (battery_voltage < 1240 && battery_voltage > 800 && batteryCheck){       //Has the battery the desirable voltage? ###check 800
 	        esc_1 += esc_1 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-1 pulse for voltage drop.
 	        esc_2 += esc_2 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-2 pulse for voltage drop.
 	        esc_3 += esc_3 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-3 pulse for voltage drop.
 	        esc_4 += esc_4 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-4 pulse for voltage drop.
-    	}*/
+    	}
 
       if (esc_1 < 1100) esc_1 = 1100;                                         //Keep the motors running.
       if (esc_2 < 1100) esc_2 = 1100;                                         //Keep the motors running.
       if (esc_3 < 1100) esc_3 = 1100;                                         //Keep the motors running.
       if (esc_4 < 1100) esc_4 = 1100;                                         //Keep the motors running.
 
-      if (esc_1 > 1600) esc_1 = 1600;                                           //Limit the esc-1 pulse to 2000us.
-      if (esc_2 > 1600) esc_2 = 1600;                                           //Limit the esc-2 pulse to 2000us.
-      if (esc_3 > 1600) esc_3 = 1600;                                           //Limit the esc-3 pulse to 2000us.
-      if (esc_4 > 1600) esc_4 = 1600;                                           //Limit the esc-4 pulse to 2000us.
+      if (esc_1 > 2000) esc_1 = 2000;                                           //Limit the esc-1 pulse to 2000us.
+      if (esc_2 > 2000) esc_2 = 2000;                                           //Limit the esc-2 pulse to 2000us.
+      if (esc_3 > 2000) esc_3 = 2000;                                           //Limit the esc-3 pulse to 2000us.
+      if (esc_4 > 2000) esc_4 = 2000;                                           //Limit the esc-4 pulse to 2000us.
     }
 
     else{
@@ -351,18 +358,29 @@ void loop() {
     TimerSC[2] = esc_2 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-2 pulse.
     TimerSC[3] = esc_3 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-3 pulse.
     TimerSC[4] = esc_4 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-4 pulse.
-    //Κενός χρόνος 1000us οπού μπορεόυμε να εκμεταλευτούμε για να διαβάσουμε τιμές αισθητήρων. Ο χρόνος ανάγνωσης δεν πρέπει να ξεπεράσει ποτέ 1000us
-    while(PORTE >= 8 || PORTH >=8){                                           //Stay in this loop until output 2,3,5 and 6 are low.
-      unsigned long   esc_loop_timer = micros();                                              //Read the current time.
-      if(TimerSC[1] <= esc_loop_timer)PORTE &= B11101111;                //Set digital output 2 [4] to low if the time is expired. Το D2 είναι το 5ο bit PORTE
-      if(TimerSC[2] <= esc_loop_timer)PORTE &= B11011111;                //Set digital output 3 [5] to low if the time is expired. Το D3 είναι το 6ο bit PORTE
-      if(TimerSC[3] <= esc_loop_timer)PORTE &= B11110111;                //Set digital output 5 [6] to low if the time is expired. Το D5 είναι το 4ο bit PORTE
-      if(TimerSC[4] <= esc_loop_timer)PORTH &= B11110111;                //Set digital output 6 [7] to low if the time is expired. Το D6 είναι το 4ο bit PORTH
+    //Wait 1000us Here you can put functions and read sensors only if the execution time is lower than 1000us. Else esc will be unpredictable
+	receiverRead();	//Read the signal values of the receiver. It's fast.
+    while(PORTE >= 8 || PORTH >=8){                                        //Stay in this loop until output 2,3,5 and 6 are low.
+		unsigned long   esc_loop_timer = micros();                         //Read the current time.
+		if(TimerSC[1] <= esc_loop_timer)PORTE &= B11101111;                //Set digital output 2 to low if the time is expired. Το D2 είναι το 5ο bit PORTE
+		if(TimerSC[2] <= esc_loop_timer)PORTE &= B11011111;                //Set digital output 3 to low if the time is expired. Το D3 είναι το 6ο bit PORTE
+		if(TimerSC[3] <= esc_loop_timer)PORTE &= B11110111;                //Set digital output 5 to low if the time is expired. Το D5 είναι το 4ο bit PORTE
+		if(TimerSC[4] <= esc_loop_timer)PORTH &= B11110111;                //Set digital output 6 to low if the time is expired. Το D6 είναι το 4ο bit PORTH
     }
     //Συναρτήσεις που θα διαχειρίζονται μετρήσεις αισθητήρων εδώ
-    gyro_signalen();
+	//receiverRead();	//Read the signal values of the receiver. It's fast
+	gyro_signalen();//Read the values of gyro accelerometer thermometer from MPU-6050
 }
 
+
+void receiverRead(){
+	receiver_input_channel_1 = convert_receiver_channel(1);                 //Convert the actual receiver signals for pitch to the standard 1000 - 2000us.
+	receiver_input_channel_2 = convert_receiver_channel(2);                 //Convert the actual receiver signals for roll to the standard 1000 - 2000us.
+	receiver_input_channel_3 = convert_receiver_channel(3);                 //Convert the actual receiver signals for throttle to the standard 1000 - 2000us.
+	receiver_input_channel_4 = convert_receiver_channel(4);                 //Convert the actual receiver signals for yaw to the standard 1000 - 2000us.
+	receiver_input_channel_5 = convert_receiver_channel(5);
+	receiver_input_channel_6 = convert_receiver_channel(6);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Subroutine for reading the gyro
@@ -373,13 +391,6 @@ void gyro_signalen(){
     Wire.write(0x3B);                             //Start reading @ register 43h and auto increment with every read.
     Wire.endTransmission();                       //End the transmission.
     Wire.requestFrom(0x68,14);                    //Request 14 bytes from the gyro.
-
-    receiver_input_channel_1 = convert_receiver_channel(1);                 //Convert the actual receiver signals for pitch to the standard 1000 - 2000us.
-    receiver_input_channel_2 = convert_receiver_channel(2);                 //Convert the actual receiver signals for roll to the standard 1000 - 2000us.
-    receiver_input_channel_3 = convert_receiver_channel(3);                 //Convert the actual receiver signals for throttle to the standard 1000 - 2000us.
-    receiver_input_channel_4 = convert_receiver_channel(4);                 //Convert the actual receiver signals for yaw to the standard 1000 - 2000us.
-    receiver_input_channel_5 = convert_receiver_channel(5);
-    receiver_input_channel_6 = convert_receiver_channel(6);
 
     while(Wire.available() < 14);                                           //Wait until the 14 bytes are received.
     acc_x        = Wire.read()<<8|Wire.read();                              //Add the low and high byte to the acc_x variable.
