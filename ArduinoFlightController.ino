@@ -167,25 +167,24 @@ void setup(){
 
 void loop() {
     if(millis()-loop_timer_LCD >= 1000){
-        loop_timer_LCD = millis();
-          //Serial.println(loop_timer_LCD);
-          //Serial.print("ch1:      ");Serial.print(TimeLenghtPWMChan[1]);Serial.print("===>");Serial.println(receiver_input_channel_1);
-          //Serial.print("ch2 Pitch ");Serial.print(TimeLenghtPWMChan[2]);Serial.print("===>");Serial.println(receiver_input_channel_2);
-          //Serial.print("ch3 Throttle ");Serial.print(TimeLenghtPWMChan[3]);Serial.print("===>");Serial.println(receiver_input_channel_3);
-          //Serial.print("ch4 Yaw      ");Serial.print(TimeLenghtPWMChan[4]);Serial.print("===>");Serial.println(receiver_input_channel_4);
-          //Serial.print("ch5 AUX1     ");Serial.print(TimeLenghtPWMChan[5]);Serial.print("===>");Serial.println(receiver_input_channel_5);
-          //Serial.print("ch6 AUX2     ");Serial.print(TimeLenghtPWMChan[6]);Serial.print("===>");Serial.println(receiver_input_channel_6);
-          //Serial.print("throttle     ");Serial.println(throttle);
-          //Serial.print("esc_1        ");Serial.println(esc_1);
-          //Serial.print("esc_2        ");Serial.println(esc_2);
-          //Serial.print("esc_3        ");Serial.println(esc_3);
-          //Serial.print("esc_4        ");Serial.println(esc_4);
-		  //Serial.print("S ");Serial.println(start);
-          //Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
-          //Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
-		  //Serial.print("Y");Serial.println(gyro_yaw_input);
-		  Serial.println(drone_pitch);Serial.println(drone_roll);
-
+		loop_timer_LCD = millis();
+		//Serial.println(loop_timer_LCD);
+		//Serial.print("ch1:      ");Serial.print(TimeLenghtPWMChan[1]);Serial.print("===>");Serial.println(receiver_input_channel_1);
+		//Serial.print("ch2 Pitch ");Serial.print(TimeLenghtPWMChan[2]);Serial.print("===>");Serial.println(receiver_input_channel_2);
+		//Serial.print("ch3 Throttle ");Serial.print(TimeLenghtPWMChan[3]);Serial.print("===>");Serial.println(receiver_input_channel_3);
+		//Serial.print("ch4 Yaw      ");Serial.print(TimeLenghtPWMChan[4]);Serial.print("===>");Serial.println(receiver_input_channel_4);
+		//Serial.print("ch5 AUX1     ");Serial.print(TimeLenghtPWMChan[5]);Serial.print("===>");Serial.println(receiver_input_channel_5);
+		//Serial.print("ch6 AUX2     ");Serial.print(TimeLenghtPWMChan[6]);Serial.print("===>");Serial.println(receiver_input_channel_6);
+		//Serial.print("throttle     ");Serial.println(throttle);
+		//Serial.print("esc_1        ");Serial.println(esc_1);
+		//Serial.print("esc_2        ");Serial.println(esc_2);
+		//Serial.print("esc_3        ");Serial.println(esc_3);
+		//Serial.print("esc_4        ");Serial.println(esc_4);
+		//Serial.print("S ");Serial.println(start);
+		//Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
+		//Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
+		//Serial.print("Y");Serial.println(gyro_yaw_input);
+		Serial.println(drone_pitch);Serial.println(drone_roll);
     }
     //65.5 = 1 deg/sec (check the datasheet of the MPU-6050 for more information).
 	//This is a filter to avoid the effects of a faulty read from gyro and smooth the total value.
