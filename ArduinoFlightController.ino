@@ -19,10 +19,10 @@ int esc_1, esc_2, esc_3, esc_4; //Οι τιμές των speed controller που
 int numOfCalibrations;//Αριθμός αρχικών μετρήσεων από το γυροσκόπιο MPU6050 για να υπολογιστή ο διορθωτικός πίνακας gyro_axis_cal[]. Αριθμός διορθώσεων = 2000.
 int start;  //Κατάσταση drone 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
 float angle_roll_acc, angle_pitch_acc;  //Υπολογισμός roll - pitch από το επιταχυνσιόμετρο
-float drone_pitch, drone_roll;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
+float drone_pitch, drone_roll, drone_yaw;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
 int throttle, battery_voltage;          //Μεταβλητή που δέχεται το γκάζι από την τηλεκατεύθυνση, Μεταβλητή που δείχνει την τάση της μπαταρίας
 
-#define interrupt_Ch1_Roll     A9     //CHANNEL 1 ==> A9  Roll 
+#define interrupt_Ch1_Roll     A9     //CHANNEL 1 ==> A9  Roll
 #define interrupt_Ch2_Pitch    A10    //CHANNEL 2 ==> A10 Pitch
 #define interrupt_Ch3_Throttle A8     //CHANNEL 3 ==> A8  Throttle
 #define interrupt_Ch4_Yaw      A11    //CHANNEL 4 ==> A11 Yaw
@@ -33,7 +33,7 @@ int throttle, battery_voltage;          //Μεταβλητή που δέχετα
 #define LED_ORANGE_B 31					//Orange led of the board
 #define LED_GREEN_C  30					//Green led of the board
 
-float roll_level_adjust, pitch_level_adjust;	//*_level_adjust = 15 x drone_* //*_level_adjust value for PID calculations
+float roll_level_adjust, pitch_level_adjust, yaw_level_adjust;	//*_level_adjust = 15 x drone_* //*_level_adjust value for PID calculations
 float pid_i_mem_pitch, pid_pitch_setpoint, gyro_pitch_input, pid_output_pitch, pid_last_pitch_d_error;//Values inside calculate_pid() for PID calculations
 float pid_i_mem_roll,  pid_roll_setpoint,  gyro_roll_input,  pid_output_roll,  pid_last_roll_d_error;//Values inside calculate_pid() for PID calculations
 float pid_error_temp;
@@ -198,7 +198,7 @@ void loop() {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //Gyro angle calculations
     //0.0000611 = 1 / (250Hz / 65.5)
-    //I multiply with 2 because insted using a periode of 1/250=4ms I am using a periode of 1/125=8ms για να προλαβαίνει το arduino να διαβάσει το γυροσκόπιο και μελλοντικούς αισθητήρες
+    //I multiply with 2 because insted using a periode of 1/250=4ms I am using a periode of 1/125=8ms to have more time to read more sensors
     drone_pitch += 2*gyro_pitch * 0.0000611;      //Calculate the traveled pitch angle and add this to the drone_pitch variable.
     drone_roll  += 2*gyro_roll  * 0.0000611;      //Calculate the traveled roll angle and add this to the drone_roll variable.
 
@@ -235,10 +235,12 @@ void loop() {
 
     pitch_level_adjust = drone_pitch * 15;                                    //Calculate the pitch angle correction The current angle of drone x 15. In pid for an angle 10 the value will be 1500+10x15=1750. https://youtu.be/DYpHB-LfloI?list=PL0K4VDicBzsibZqfa42DVxC8CGCMB7G2G&t=329
     roll_level_adjust  = drone_roll  * 15;                                    //Calculate the roll angle correction
+	//yaw_level_adjust   = drone_yaw   * 15;
 
     if(!auto_level){                                                          //If the quadcopter is not in auto-level mode
-		pitch_level_adjust = 0;                                               //Set the pitch angle correction to zero.
-		roll_level_adjust = 0;                                                //Set the roll angle correcion to zero.
+		pitch_level_adjust = 0;                                               //Set the pitch angle correction to zero. If the drone tends to not be level you can change the value like trimming the transmiter.
+		roll_level_adjust = 0;                                                //Set the roll angle correcion to zero. If the drone tends to not be level you can change the value like trimming the transmiter.
+		//yaw_level_adjust =0;
     }
     //For starting the motors: throttle low and yaw right (step 1).
     if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 > 1950){
@@ -270,7 +272,7 @@ void loop() {
     //We need a little dead band of 16us for better results.
     if(receiver_input_channel_1 > 1508)      pid_roll_setpoint = receiver_input_channel_1 - 1508;
     else if(receiver_input_channel_1 < 1492) pid_roll_setpoint = receiver_input_channel_1 - 1492;
-    pid_roll_setpoint -= roll_level_adjust;//Subtract the angle correction from the standardized receiver roll input value.
+    pid_roll_setpoint -= roll_level_adjust;//Subtract the angle correction from the standardized receiver roll input value. Like trimming the transmiter.
     pid_roll_setpoint /= 3.0;              //Divide the setpoint for the PID roll controller by 3 to get angles in degrees.
 
     //The PID set point in degrees per second is determined by the pitch receiver input.
@@ -279,7 +281,7 @@ void loop() {
     //We need a little dead band of 16us for better results.
     if     (receiver_input_channel_2 > 1508)pid_pitch_setpoint = receiver_input_channel_2 - 1508;
     else if(receiver_input_channel_2 < 1492)pid_pitch_setpoint = receiver_input_channel_2 - 1492;
-    pid_pitch_setpoint -= pitch_level_adjust;     //Subtract the angle correction from the standardized receiver pitch input value.
+    pid_pitch_setpoint -= pitch_level_adjust;     //Subtract the angle correction from the standardized receiver pitch input value. Like trimming the transmiter.
     pid_pitch_setpoint /= 3.0;                    //Divide the setpoint for the PID pitch controller by 3 to get angles in degrees.
 
     //The PID set point in degrees per second is determined by the yaw receiver input.
@@ -290,6 +292,13 @@ void loop() {
       if(receiver_input_channel_4 > 1508)      pid_yaw_setpoint = (receiver_input_channel_4 - 1508)/3.0;
       else if(receiver_input_channel_4 < 1492) pid_yaw_setpoint = (receiver_input_channel_4 - 1492)/3.0;
     }
+	//For headlock
+	/*if(receiver_input_channel_3 > 1050){ //Do not yaw when throtlle is at the bottom.54545454
+      if(receiver_input_channel_4 > 1508)      pid_yaw_setpoint = receiver_input_channel_4 - 1508;
+      else if(receiver_input_channel_4 < 1492) pid_yaw_setpoint = receiver_input_channel_4 - 1492;
+	  pid_yaw_setpoint -= yaw_level_adjust;
+	  pid_yaw_setpoint /=3.0;
+  }*/
     calculate_pid();              //PID inputs are known. So we can calculate the pid output.
     //If we want to check the battery voltage to correct the esps
 	if(batteryCheck){
@@ -302,16 +311,16 @@ void loop() {
 			digitalWrite(LED_RED_A, HIGH);
 		}
 	}
-    throttle = receiver_input_channel_3;                                      //We need the throttle signal as a base signal.
+    throttle = receiver_input_channel_3;                                      //Receiver_input_channel_3 of transmiter as a base throttle for each motor.
 
     if (start == 2){                                                          //The motors are started.
-      if (throttle > 1700) throttle = 1700;                                   //We need some room to keep full control at full throttle.
+      if (throttle > 1700) throttle = 1700;                                   //We need some room to keep control of motor at full throttle.
       esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 1 (front-right - CCW)
       esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 2 (rear-right - CW)
       esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 3 (rear-left - CCW)
       esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW)
 
-      if (battery_voltage < 1240 && battery_voltage > 800 && batteryCheck){       //Has the battery the desirable voltage? ###check 800
+      if ( 800 < battery_voltage && battery_voltage < 1240 && batteryCheck){       //Has the battery the desirable voltage? ###check 800
 	        esc_1 += esc_1 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-1 pulse for voltage drop.
 	        esc_2 += esc_2 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-2 pulse for voltage drop.
 	        esc_3 += esc_3 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-3 pulse for voltage drop.
@@ -328,7 +337,6 @@ void loop() {
       if (esc_3 > 2000) esc_3 = 2000;                                           //Limit the esc-3 pulse to 2000us.
       if (esc_4 > 2000) esc_4 = 2000;                                           //Limit the esc-4 pulse to 2000us.
     }
-
     else{
       esc_1 = 1000;                                                           //If start is not 2 keep a 1000us pulse for ess-1.
       esc_2 = 1000;                                                           //If start is not 2 keep a 1000us pulse for ess-2.
@@ -343,8 +351,8 @@ void loop() {
 
     //! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
     //Because of the angle calculation the loop time is getting very important. If the loop time is
-    //longer or shorter than 4000us(tas 8000us) the angle calculation is off. If you modify the code make sure
-    //that the loop time is still 4000us and no longer! More information can be found on
+    //longer or shorter than 8000us the angle calculation is FAULTY. If you modify the code make sure
+    //that the loop time is still 8000us and no longer! More information can be found on
     //the Q&A page:
     //! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! !
     if(micros() - TimerLoop > 8050)   digitalWrite(LED_ORANGE_B, HIGH);        //Turn on the LED if the loop time exceeds 4050us.(tas 8050us)
