@@ -17,7 +17,7 @@ long gyro_axis_cal[4];          //Πίνακας αποθήκευσης τιμώ
 int esc_1, esc_2, esc_3, esc_4; //Οι τιμές των speed controller που προκύπτουν από υπολογισμούς
 
 int numOfCalibrations;//Αριθμός αρχικών μετρήσεων από το γυροσκόπιο MPU6050 για να υπολογιστή ο διορθωτικός πίνακας gyro_axis_cal[]. Αριθμός διορθώσεων = 2000.
-int start;  //Κατάσταση drone 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
+int start;  //drone state: 0=ανενεργο, 1=yaw αριστερά και throttle κάτω αναμένει να πάει το yaw στο κέντρο, 2=yaw κέντρο και throttle κάτω έτοιμο να πετάξει
 float angle_roll_acc, angle_pitch_acc;  //Υπολογισμός roll - pitch από το επιταχυνσιόμετρο
 float drone_pitch, drone_roll, drone_yaw;          //Τελικές τιμές roll - pitch από συνδυασμό επιταχυνσιόμετρου και γυροσκοποίου
 int throttle, battery_voltage;          //Μεταβλητή που δέχεται το γκάζι από την τηλεκατεύθυνση, Μεταβλητή που δείχνει την τάση της μπαταρίας
@@ -367,16 +367,17 @@ void loop() {
     TimerSC[4] = esc_4 + TimerLoop;                                     //Calculate the time of the faling edge of the esc-4 pulse.
     //Wait 1000us Here you can put functions and read sensors only if the execution time is lower than 1000us. Else esc will be unpredictable
 	receiverRead();	//Read the signal values of the receiver. It's fast.
-    while(PORTE >= 8 || PORTH >=8){                                        //Stay in this loop until output 2,3,5 and 6 are low.
+    while(PORTE >= 8 || PORTH >= 8){                                       //Stay in this loop until output 2,3,5 and 6 are low.
 		unsigned long   esc_loop_timer = micros();                         //Read the current time.
 		if(TimerSC[1] <= esc_loop_timer)PORTE &= B11101111;                //Set digital output 2 to low if the time is expired. Το D2 είναι το 5ο bit PORTE
 		if(TimerSC[2] <= esc_loop_timer)PORTE &= B11011111;                //Set digital output 3 to low if the time is expired. Το D3 είναι το 6ο bit PORTE
 		if(TimerSC[3] <= esc_loop_timer)PORTE &= B11110111;                //Set digital output 5 to low if the time is expired. Το D5 είναι το 4ο bit PORTE
 		if(TimerSC[4] <= esc_loop_timer)PORTH &= B11110111;                //Set digital output 6 to low if the time is expired. Το D6 είναι το 4ο bit PORTH
     }
-    //Συναρτήσεις που θα διαχειρίζονται μετρήσεις αισθητήρων εδώ
-	//receiverRead();	//Read the signal values of the receiver. It's fast
-	gyro_signalen();//Read the values of gyro accelerometer thermometer from MPU-6050
+    //Future functions that they will reading the new sensors.
+	//
+	/////////
+	gyro_signalen();	//Read the values of gyro accelerometer thermometer from MPU-6050
 }
 
 
@@ -385,8 +386,8 @@ void receiverRead(){
 	receiver_input_channel_2 = convert_receiver_channel(2);                 //Convert the actual receiver signals for roll to the standard 1000 - 2000us.
 	receiver_input_channel_3 = convert_receiver_channel(3);                 //Convert the actual receiver signals for throttle to the standard 1000 - 2000us.
 	receiver_input_channel_4 = convert_receiver_channel(4);                 //Convert the actual receiver signals for yaw to the standard 1000 - 2000us.
-	receiver_input_channel_5 = convert_receiver_channel(5);
-	receiver_input_channel_6 = convert_receiver_channel(6);
+	receiver_input_channel_5 = convert_receiver_channel(5);					//Convert the actual receiver signals for future channel to the standard 1000 - 2000us.
+	receiver_input_channel_6 = convert_receiver_channel(6);					//Convert the actual receiver signals for future channel to the standard 1000 - 2000us.
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -408,10 +409,10 @@ void gyro_signalen(){
     gyro_roll    = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
     gyro_yaw     = Wire.read()<<8|Wire.read();                              //Read high and low part of the angular data.
 
-    if(numOfCalibrations == 2000){
-        gyro_pitch -= gyro_axis_cal[1];                                   //Only compensate after the calibration. X
-        gyro_roll  -= gyro_axis_cal[2];                                   //Only compensate after the calibration. Y
-        gyro_yaw   -= gyro_axis_cal[3];                                   //Only compensate after the calibration. Z
+    if(numOfCalibrations == 2000){											//If I have done the initial calibration and I have the calibration values
+        gyro_pitch -= gyro_axis_cal[1];										//Calibrate pitch. X
+        gyro_roll  -= gyro_axis_cal[2];										//Calibrate roll.  Y
+        gyro_yaw   -= gyro_axis_cal[3];										//Calibrate yaw.   Z
     }
 }
 
@@ -428,8 +429,8 @@ void set_gyro_registers(){
     Wire.write(0x08);                                                          //Set the register bits as 00001000 (500dps full scale)
     Wire.endTransmission();                                                    //End the transmission with the gyro
     //Configure the accelerometer (+/-8g)
-    Wire.beginTransmission(0x68);                                      //Start communication with the address found during search.
-    Wire.write(0x1C);                                                          //We want to write to the ACCEL_CONFIG register (1A hex)
+    Wire.beginTransmission(0x68);										//Start communication with the address found during search.
+    Wire.write(0x1C);													//We want to write to the ACCEL_CONFIG register (1A hex)
     Wire.write(0x10);                                                          //Set the register bits as 00010000 (+/- 8g full scale range)
     Wire.endTransmission();                                                    //End the transmission with the gyro
 }
@@ -478,7 +479,7 @@ void calculate_pid(){
 }
 
 void setupChannelCalibrationValues(){
-    ChannelsMinValue=1000;ChannelsMaxValue=2000;      //Το ελάχιστο και μέγιστο που θέλω να προκύπτει από κάθε κανάλι μετά από γραμμική παρεμβολή
+    ChannelsMinValue=1000;ChannelsMaxValue=2000;      //Min and max value after linear interpolation of the channels
 
     channel1TrData[0]=1048;channel1TrData[1]=1872;Ch1A=(double)ChannelsMinValue/(channel1TrData[1]-channel1TrData[0]);
     channel2TrData[0]=1040;channel2TrData[1]=1860;Ch2A=(double)ChannelsMinValue/(channel2TrData[1]-channel2TrData[0]);
