@@ -114,7 +114,7 @@ void setup(){
         if(numOfCalibrations % 15 == 0)
             digitalWrite(LED_RED_A, !digitalRead(LED_RED_A));               //Change the led status to indicate calibration.
 
-        gyro_signalen();                                                    //Read the gyro output.
+        gyroRead();                                                         //Read the gyro output.
         gyro_axis_cal[1] += gyro_pitch;                                     //Ad roll value to gyro_roll_cal.
         gyro_axis_cal[2] += gyro_roll;                                      //Ad pitch value to gyro_pitch_cal.
         gyro_axis_cal[3] += gyro_yaw;                                       //Ad yaw value to gyro_yaw_cal.
@@ -160,7 +160,12 @@ void setup(){
     12.6V equals 1023 analogRead(0).
     1260 / 1023 = 1.2317.
     The variable battery_voltage holds 1050 if the battery voltage is 10.5V.*/
-    battery_voltage = (analogRead(0) + 65) * 1.2317;
+    if( batteryCheck){
+		battery_voltage = (analogRead(0) + 65) * 1.2317;
+	}
+	else{
+		battery_voltage=0;
+	}
     //When everything is done, turn off the led.
     TimerLoop = micros();                                                    	//Set the timer for the next loop.
 }
@@ -184,7 +189,7 @@ void loop() {
 		//Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
 		//Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
 		//Serial.print("Y");Serial.println(gyro_yaw_input);
-		Serial.println(drone_pitch);Serial.println(drone_roll);
+		//Serial.println(drone_pitch);Serial.println(drone_roll);
     }
     //65.5 = 1 deg/sec (check the datasheet of the MPU-6050 for more information).
 	//This is a filter to avoid the effects of a faulty read from gyro and smooth the total value.
@@ -243,7 +248,7 @@ void loop() {
 		//yaw_level_adjust =0;
     }
     //For starting the motors: throttle low and yaw right (step 1).
-    if(receiver_input_channel_3 < 1050 && receiver_input_channel_4 > 1950){
+    if(start == 0 && receiver_input_channel_3 < 1050 && receiver_input_channel_4 > 1950){
         start = 1;
         digitalWrite(LED_GREEN_C, true);
     }
@@ -320,7 +325,7 @@ void loop() {
       esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 3 (rear-left - CCW)
       esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW)
 
-      if ( 800 < battery_voltage && battery_voltage < 1240 && batteryCheck){       //Has the battery the desirable voltage? ###check 800
+        if ( 800 < battery_voltage && battery_voltage < 1240 && batteryCheck){    //Has the battery the desirable voltage? ###check 800
 	        esc_1 += esc_1 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-1 pulse for voltage drop.
 	        esc_2 += esc_2 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-2 pulse for voltage drop.
 	        esc_3 += esc_3 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-3 pulse for voltage drop.
@@ -377,7 +382,7 @@ void loop() {
     //Future functions that they will reading the new sensors.
 	//
 	/////////
-	gyro_signalen();	//Read the values of gyro accelerometer thermometer from MPU-6050
+	gyroRead();	//Read the values of gyro accelerometer thermometer from MPU-6050
 }
 
 
@@ -393,7 +398,7 @@ void receiverRead(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Subroutine for reading the gyro
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void gyro_signalen(){
+void gyroRead(){
     //Read the MPU-6050
     Wire.beginTransmission(0x68);                 //Start communication with the gyro.
     Wire.write(0x3B);                             //Start reading @ register 43h and auto increment with every read.
