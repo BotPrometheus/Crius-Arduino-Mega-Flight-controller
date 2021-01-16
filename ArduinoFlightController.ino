@@ -164,7 +164,7 @@ void setup(){
 		battery_voltage = (analogRead(0) + 65) * 1.2317;
 	}
 	else{
-		battery_voltage=0;
+		battery_voltage=1240;
 	}
     //When everything is done, turn off the led.
     TimerLoop = micros();                                                    	//Set the timer for the next loop.
@@ -181,15 +181,15 @@ void loop() {
 		//Serial.print("ch5 AUX1     ");Serial.print(TimeLenghtPWMChan[5]);Serial.print("===>");Serial.println(receiver_input_channel_5);
 		//Serial.print("ch6 AUX2     ");Serial.print(TimeLenghtPWMChan[6]);Serial.print("===>");Serial.println(receiver_input_channel_6);
 		//Serial.print("throttle     ");Serial.println(throttle);
-		//Serial.print("esc_1        ");Serial.println(esc_1);
-		//Serial.print("esc_2        ");Serial.println(esc_2);
-		//Serial.print("esc_3        ");Serial.println(esc_3);
-		//Serial.print("esc_4        ");Serial.println(esc_4);
+		Serial.print("esc_1 FR ");Serial.println(esc_1);
+		Serial.print("esc_2 BR ");Serial.println(esc_2);
+		Serial.print("esc_3 BL ");Serial.println(esc_3);
+		Serial.print("esc_4 FL ");Serial.println(esc_4);
 		//Serial.print("S ");Serial.println(start);
 		//Serial.print(drone_pitch);Serial.print("P ");Serial.print(angle_pitch_acc);Serial.print(" ");Serial.println(gyro_pitch);
 		//Serial.print(drone_roll);Serial.print("R ");Serial.print(angle_roll_acc);Serial.print(" ");Serial.println(gyro_roll);
 		//Serial.print("Y");Serial.println(gyro_yaw_input);
-		//Serial.println(drone_pitch);Serial.println(drone_roll);
+		Serial.println(drone_pitch);Serial.println(drone_roll);
     }
     //65.5 = 1 deg/sec (check the datasheet of the MPU-6050 for more information).
 	//This is a filter to avoid the effects of a faulty read from gyro and smooth the total value.
@@ -255,8 +255,8 @@ void loop() {
     //When yaw stick is back in the center position start the motors (step 2).
     if(start == 1 && receiver_input_channel_3 < 1050 && receiver_input_channel_4 < 1550){
 		start = 2;
-		drone_pitch = angle_pitch_acc;                                          //Set the gyro pitch angle equal to the accelerometer pitch angle when the quadcopter is started.
-		drone_roll = angle_roll_acc;                                            //Set the gyro roll angle equal to the accelerometer roll angle when the quadcopter is started.
+		//drone_pitch = angle_pitch_acc;                                          //Set the gyro pitch angle equal to the accelerometer pitch angle when the quadcopter is started.
+		//drone_roll = angle_roll_acc;                                            //Set the gyro roll angle equal to the accelerometer roll angle when the quadcopter is started.
 		//Reset the PID controllers for a bumpless start.
 		pid_i_mem_roll = 0;
 		pid_last_roll_d_error = 0;
@@ -273,7 +273,7 @@ void loop() {
     }
     //The PID set point in degrees per second is determined by the roll receiver input.
     //In the case of deviding by 3 the max roll rate is aprox 164 degrees per second ( (500-8)/3 = 164d/s ).
-    pid_roll_setpoint = 0;//Roll angle of drone determined via user with transmiter
+    //***pid_roll_setpoint = 0;//Roll angle of drone determined via user with transmiter
     //We need a little dead band of 16us for better results.
     if(receiver_input_channel_1 > 1508)      pid_roll_setpoint = receiver_input_channel_1 - 1508;
     else if(receiver_input_channel_1 < 1492) pid_roll_setpoint = receiver_input_channel_1 - 1492;
@@ -282,7 +282,7 @@ void loop() {
 
     //The PID set point in degrees per second is determined by the pitch receiver input.
     //In the case of deviding by 3 the max pitch rate is aprox 164 degrees per second ( (500-8)/3 = 164d/s ).
-    pid_pitch_setpoint = 0;//Pitch angle of drone determined via user with transmiter
+    //***pid_pitch_setpoint = 0;//Pitch angle of drone determined via user with transmiter
     //We need a little dead band of 16us for better results.
     if     (receiver_input_channel_2 > 1508)pid_pitch_setpoint = receiver_input_channel_2 - 1508;
     else if(receiver_input_channel_2 < 1492)pid_pitch_setpoint = receiver_input_channel_2 - 1492;
@@ -291,14 +291,14 @@ void loop() {
 
     //The PID set point in degrees per second is determined by the yaw receiver input.
     //In the case of deviding by 3 the max yaw rate is aprox 164 degrees per second ( (500-8)/3 = 164d/s ).
-    pid_yaw_setpoint = 0;//Yaw angle of drone determined via user with transmiter
+    //***pid_yaw_setpoint = 0;//Yaw angle of drone determined via user with transmiter
     //We need a little dead band of 16us for better results.
     if(receiver_input_channel_3 > 1050){ //Do not yaw when throtlle is at the bottom.
       if(receiver_input_channel_4 > 1508)      pid_yaw_setpoint = (receiver_input_channel_4 - 1508)/3.0;
       else if(receiver_input_channel_4 < 1492) pid_yaw_setpoint = (receiver_input_channel_4 - 1492)/3.0;
     }
 	//For headlock
-	/*if(receiver_input_channel_3 > 1050){ //Do not yaw when throtlle is at the bottom.54545454
+	/*if(receiver_input_channel_3 > 1050){ //Do not yaw when throtlle is at the bottom.
       if(receiver_input_channel_4 > 1508)      pid_yaw_setpoint = receiver_input_channel_4 - 1508;
       else if(receiver_input_channel_4 < 1492) pid_yaw_setpoint = receiver_input_channel_4 - 1492;
 	  pid_yaw_setpoint -= yaw_level_adjust;
@@ -320,10 +320,10 @@ void loop() {
 
     if (start == 2){                                                          //The motors are started.
       if (throttle > 1700) throttle = 1700;                                   //We need some room to keep control of motor at full throttle.
-      esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 1 (front-right - CCW)
-      esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 2 (rear-right - CW)
-      esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 3 (rear-left - CCW)
-      esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW)
+      esc_1 = throttle - pid_output_pitch + pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 1 (front-right - CCW) D2
+      esc_2 = throttle + pid_output_pitch + pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 2 (rear-right - CW) D3
+      esc_3 = throttle + pid_output_pitch - pid_output_roll - pid_output_yaw; //Calculate the pulse for esc 3 (rear-left - CCW) D5
+      esc_4 = throttle - pid_output_pitch - pid_output_roll + pid_output_yaw; //Calculate the pulse for esc 4 (front-left - CW) D6
 
         if ( 800 < battery_voltage && battery_voltage < 1240 && batteryCheck){    //Has the battery the desirable voltage? ###check 800
 	        esc_1 += esc_1 * ((1240 - battery_voltage)/(float)3500);              //Compensate the esc-1 pulse for voltage drop.
